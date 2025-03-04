@@ -91,17 +91,23 @@ async function delay(ms) {
 async function handleCreateRace() {
 	console.log("in create race");
 
-	// render starting UI
-	renderAt("#race", renderRaceStartView(store.track_name));
-	try {
-		// TODO - Get player_id and track_id from the store
-		// const race = TODO - call the asynchronous method createRace, passing the correct parameters
-		const race = await createRace(store.player_id, store.track_id);
-		store.race_id = race.ID - 1;
-		// TODO - update the store with the race id in the response
-		// TIP - console logging API responses can be really helpful to know what data shape you received
+	// TODO - Get player_id and track_id from the store
+	let track_id = store.track_id
+	let player_id = store.player_id
 
-		renderAt("#race", renderRaceStartView(store.track_id));
+	if (!player_id || !track_id) {
+		alert("You have to select a track and racer to Start the Race")
+	}
+
+	// render starting UI
+	try {
+		// const race = TODO - call the asynchronous method createRace, passing the correct parameters
+		const race = await createRace(player_id, track_id);
+		renderAt("#race", renderRaceStartView(track_id));
+		// TIP - console logging API responses can be really helpful to know what data shape you received
+		
+		// TODO - update the store with the race id in the response
+		store.race_id = parseInt(race.ID) - 1;
 		// The race has been created, now start the countdown
 		// TODO - call the async function runCountdown
 		await runCountdown();
@@ -109,10 +115,11 @@ async function handleCreateRace() {
 		// TIP - remember to always check if a function takes parameters before calling it!
 		await startRace(store.race_id);
 		// TODO - call the async function runRace
-		await runRace(store.race_id);
+		let raceRun = await runRace(store.race_id);
+		console.log("Race Run => ", raceRun)
 	} catch (error) {
 		// Error if [try code] did not work
-		console.log(error.message);
+		console.log("Error in HandleCreateRace", error.message);
 	}
 }
 
@@ -121,19 +128,19 @@ function runRace(raceID) {
 		// TODO - use Javascript's built in setInterval method to get race info (getRace function) every 500ms
 
 		// Setting Race interval for race to run every 500ms
-		let raceInterval = setInterval(() => {
+		const raceInterval = setInterval(async () => {
 			// Getting Race Status
-			getRace(raceID).then((res) => {
 				// Checking Race Status
+				const res = await getRace(raceID).catch( (error) => console.log("error from runRace", error) )
 				/* 
 					TODO - if the race info status property is "in-progress", update the leaderboard by calling:
 					
 					renderAt('#leaderBoard', raceProgress(res.positions))
 				*/
-				if (res.status === "in-progress") {
+				if (res.status == "in-progress") {
 					// Updating LeaderBoard
 					renderAt("#leaderBoard", raceProgress(res.positions));
-				} else if (res.status === "finished") {
+				} else if (res.status == "finished") {
 					/* 
 						TODO - if the race info status property is "finished", run the following:
 				
@@ -145,12 +152,11 @@ function runRace(raceID) {
 					renderAt("#race", resultsView(res.positions));
 					resolve(res);
 				}
-			});
+			// });
 		}, 500);
-	}, error("ERROR"));
+	}).catch( (error) => console.log(error) )
 	// remember to add error handling for the Promise
 }
-
 async function runCountdown() {
 	try {
 		// wait for the DOM to load
@@ -159,12 +165,12 @@ async function runCountdown() {
 
 		return new Promise((resolve) => {
 			// TODO - use Javascript's built in setInterval method to count down once per second
-			setInterval(() => {
-				let countDown = (document.getElementById("big-numbers").innerHTML =
-					--timer);
-
-				if (timer == 0) {
-					clearInterval(countDown);
+			let theCountDownInterval = setInterval(() => {
+				if (timer !== 0) {
+					console.log(`Timer ===> [ ${timer} ]`)
+					document.getElementById("big-numbers").innerHTML = --timer
+				} else {
+					clearInterval(theCountDownInterval);
 					resolve();
 				}
 			}, 1000);
@@ -206,7 +212,11 @@ function handleSelectTrack(target) {
 function handleAccelerate() {
 	console.log("accelerate button clicked");
 	// TODO - Invoke the API call to accelerate
-	accelerate(store.id);
+	accelerate(store.race_id)
+		.then(() => console.log("handeAccelerate is working good"))
+		.catch((errorFromHandleAccelerate) =>
+			console.log("Error From handleAccelerate", errorFromHandleAccelerate)
+		);
 }
 
 // HTML VIEWS ------------------------------------------------
@@ -359,46 +369,52 @@ function defaultFetchOpts() {
 
 // TODO - Make a fetch call (with error handling!) to each of the following API endpoints
 
-function getTracks() {
+async function getTracks() {
 	console.log(`calling server :: ${SERVER}/api/tracks`);
-	// GET request to `${SERVER}/api/tracks`
-	return fetch(`${SERVER}/api/tracks`, { method: "GET", ...defaultFetchOpts() })
-		.then((resolve) => {
-			if (!resolve.ok) {
-				// console.log("before fetching tracks error")
-				throw new Error("Error occoured while fetching tracks");
-			} else {
-				return resolve.json();
-			}
-		})
-		.then((dataReturnedFromFetchingTracks) => {
-			// Console.log("Data Fetched ! ")
-			console.log(
-				`Track Data Fetched Correctly, Data: ${dataReturnedFromFetchingTracks}`
-			);
-		})
-		.catch((errorMessage) => console.log(errorMessage));
+
 	// TODO: Fetch tracks
+	try {
+		// GET request to `${SERVER}/api/tracks`
+		const data = await fetch(`${SERVER}/api/tracks`, {
+			method: "GET",
+			dataType: "jsonp",
+			...defaultFetchOpts()
+		})
+		return data.json();
 	// TIP: Don't forget a catch statement!
+	} catch (error) {
+		console.log("Error From getTrack while fetching Track Api", error)
+	}
+
 }
 
-function getRacers() {
+async function getRacers() {
+	// // TODO: Fetch racers
+	// // TIP: Do a file search for "TODO" to make sure you find all the things you need to do! There are even some vscode plugins that will highlight todos for you
+	// // console.log("From fetching racers")
+	// return fetch(`${SERVER}/api/cars`, { method: "GET", ...defaultFetchOpts() })
+	// 	.then((response) => {
+	// 		if (!response.ok) {
+	// 			throw new Error("ERROR, FAILED TO GET RACERS INFO");
+	// 		}
+	// 		return response.json();
+	// 	})
+	// 	.then((returnedData) => {
+	// 		console.log(`RACERS INFO FETCHED SUCCESSFULLY, INFO => ${returnedData} `);
+	// 		return returnedData;
+	// 	})
+	// 	.catch((errorMessage) => console.log(errorMessage));
 	// GET request to `${SERVER}/api/cars`
-	// TODO: Fetch racers
-	// TIP: Do a file search for "TODO" to make sure you find all the things you need to do! There are even some vscode plugins that will highlight todos for you
-	// console.log("From fetching racers")
-	return fetch(`${SERVER}/api/cars`, { method: "GET", ...defaultFetchOpts() })
-		.then((response) => {
-			if (!response.ok) {
-				throw new Error("ERROR, FAILED TO GET RACERS INFO");
-			}
-			return response.json();
+	try {
+		const data = await fetch(`${SERVER}/api/cars`, {
+			method: "GET",
+			dataType: "jsonp",
+			...defaultFetchOpts()
 		})
-		.then((returnedData) => {
-			console.log(`RACERS INFO FETCHED SUCCESSFULLY, INFO => ${returnedData} `);
-			return returnedData;
-		})
-		.catch((errorMessage) => console.log(errorMessage));
+		return data.json()
+	} catch (errorFromGetRace) {
+	console.log("Error from getRace while fetching an Api", errorFromGetRace)
+	}
 }
 
 function createRace(player_id, track_id) {
@@ -442,9 +458,17 @@ function startRace(id) {
 		.catch((err) => console.log("Problem with getRace request::", err));
 }
 
-function accelerate(id) {
+async function accelerate(id) {
 	// POST request to `${SERVER}/api/races/${id}/accelerate`
 	// options parameter provided as defaultFetchOpts
 	// no body or datatype needed for this request
+	let raceId = parseInt(id);
+	try {
+		await fetch(`${SERVER}/api/races/${id}/accelerate`, {
+			method: "POST",
+			...defaultFetchOpts()
+		})
+	} catch (errorFromAccelerate) {
+		console.log("Error from Accelerate function", errorFromAccelerate)
+	}
 }
-
